@@ -131,6 +131,19 @@ button.btn{font:inherit;font-weight:600;cursor:pointer}
 @keyframes ring{0%{transform:rotate(0)}15%{transform:rotate(24deg)}35%{transform:rotate(-18deg)}55%{transform:rotate(11deg)}75%{transform:rotate(-5deg)}100%{transform:rotate(0)}}
 .fx{position:fixed;left:0;top:0;pointer-events:none;z-index:60;will-change:transform}
 
+/* wishes form */
+#wishes{padding-top:0}
+.wish{max-width:520px;margin:0 auto;text-align:left;padding:26px 22px;border:1.5px solid var(--gold-d);outline:1px solid rgba(154,106,18,.35);outline-offset:-8px;background:color-mix(in srgb,var(--paper) 85%,transparent)}
+.wish label{display:block;font-weight:600;color:var(--gold-d);margin:12px 0 4px}
+.wish input,.wish textarea{width:100%;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--gold-d);border-radius:4px;padding:10px 12px}
+.wish textarea{resize:vertical;min-height:120px}
+.wish input:focus,.wish textarea:focus{outline:2px solid var(--gold);outline-offset:1px}
+.wcount{text-align:right;font-size:.85rem;color:var(--soft)}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.wstatus{min-height:1.5em;margin:12px 0 0;text-align:center;color:var(--soft)}
+.wstatus.err{color:#b3261e}
+.wthanks{text-align:center;font-size:1.4rem;font-style:italic;color:var(--accent);margin:0}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.rise,.reveal{opacity:1;transform:none}.petal{display:none}}
 </style>
 </head>
@@ -197,6 +210,22 @@ button.btn{font:inherit;font-weight:600;cursor:pointer}
   <p class="hint reveal">Tap each diya to send your blessings</p>
   <div class="diyas reveal" id="diyas"></div>
   <p class="blessed en" id="blessed" aria-live="polite"></p>
+</section>
+
+<section id="wishes" hidden>
+  <svg class="divider2" viewBox="0 0 190 20" aria-hidden="true" fill="none" stroke="#9a6a12" stroke-width="1.5" style="margin-bottom:40px"><path d="M5 10 H80 M110 10 H185"/><path d="M95 2 L103 10 L95 18 L87 10Z" fill="#e3b04b"/></svg>
+  <h2 class="en reveal">Send your wishes</h2>
+  <p class="hint reveal">Write a few words for Madhulika &amp; Hariharan. Only the couple will read them.</p>
+  <form id="wishForm" class="wish reveal" novalidate>
+    <label for="wName">Your name</label>
+    <input id="wName" name="name" maxlength="80" autocomplete="name" required>
+    <label for="wMsg">Your message</label>
+    <textarea id="wMsg" name="message" maxlength="1000" rows="5" required></textarea>
+    <div class="wcount"><span id="wCount">0</span> / 1000</div>
+    <div class="hp" aria-hidden="true"><label>Leave this empty <input name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="btns" style="margin-top:14px"><button type="submit" class="btn" id="wSend">Send wishes</button></div>
+    <p class="wstatus" id="wStatus" aria-live="polite"></p>
+  </form>
 </section>
 
 </main>
@@ -323,6 +352,42 @@ document.getElementById('share').addEventListener('click',async()=>{
     });
     box.appendChild(b);
   }
+})();
+
+/* personalised wishes → Cloudflare Worker → private GitHub repo
+   Paste your Worker URL below (e.g. https://wedding-wishes.yourname.workers.dev).
+   While it is empty the form stays hidden. */
+const WISHES_URL='https://wedding-wishes.hariharan-shanmugam-2021.workers.dev';
+(function(){
+  const sec=document.getElementById('wishes'),f=document.getElementById('wishForm'),
+        st=document.getElementById('wStatus'),btn=document.getElementById('wSend'),
+        nm=document.getElementById('wName'),msg=document.getElementById('wMsg'),
+        hp=f.elements.website,cnt=document.getElementById('wCount');
+  if(!WISHES_URL)return;
+  sec.hidden=false;
+  const opened=Date.now();
+  msg.addEventListener('input',()=>{cnt.textContent=msg.value.length});
+  f.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const name=nm.value.trim(),message=msg.value.trim();
+    st.classList.remove('err');
+    if(!name||!message){st.classList.add('err');st.textContent='Please add your name and a message.';(name?msg:nm).focus();return}
+    btn.disabled=true;btn.textContent='Sending…';st.textContent='';
+    try{
+      const r=await fetch(WISHES_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name,message,website:hp.value,elapsed:Date.now()-opened})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok||!j.ok)throw Object.assign(new Error(j.error||''),{fromServer:true});
+      const p=document.createElement('p');p.className='wthanks';
+      p.textContent='Thank you, '+name+'! Your wishes have reached the couple 🙏';
+      f.replaceChildren(p);
+      shower(innerWidth<600?40:70);chime(784,2);
+    }catch(err){
+      st.classList.add('err');
+      st.textContent=(err.fromServer&&err.message)||'Could not send right now. Please check your connection and try again.';
+      btn.disabled=false;btn.textContent='Send wishes';
+    }
+  });
 })();
 
 /* temple bells */
